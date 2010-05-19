@@ -1,0 +1,116 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+<html>
+<head>
+  <title>FetchDICOM</title>
+  <meta http-equiv="content-type"
+ content="text/html; charset=ISO-8859-1">
+</head>
+<body>
+<h1>FetchDICOM</h1>
+<br>
+FetchDICOM is a program to interact with a DICOM server to fetch and push
+images. &nbsp;Specifically, it uses the <a
+ href="http://dicom.offis.de/dcmtk.php.en">dcmtk</a> to query and move images
+from the server locally.<br>
+<br>
+Definitions:<br>
+<ul>
+  <li><b>Remote DICOM Server</b> This is the server storing the images that
+you wish to fetch. &nbsp;This is also the server to push images to. &nbsp;The
+server may be an AW, a PACS system, or a scanner.</li>
+  <li><b>Local</b> This is the Application Entity of the local server. &nbsp;It
+must match the definition stored on the Remote DICOM Server.</li>
+</ul>
+<br>
+Sections:<br>
+<ul>
+  <li><a href="#FetchDICOM_Interface">Interface</a></li>
+  <li><a href="#DICOM_Configuration">Configuration</a></li>
+  <li><a href="#Fetching_Images">Fetching Images</a></li>
+  <li><a href="#Pushing_Images">Pushing Images<br>
+    </a></li>
+</ul>
+Please contact Dan Blezek (<a href="mailto:blezek@research.ge.com">blezek@research.ge.com</a>)
+for questions.<br>
+<hr width="100%" size="2">
+<h3><a name="FetchDICOM_Interface"></a>FetchDICOM Interface</h3>
+<h3><img src="Images/FetchDICOMInteface.gif" alt="FetchDICOM Interface"
+ width="812" height="707">
+</h3>
+<ol>
+  <li>Remote DICOM Server selection</li>
+  <li>Local Application Entity selection</li>
+  <li>Configure Application Entities</li>
+  <li>Patient List from remote server</li>
+  <li>Series list from selected patient<br>
+  </li>
+</ol>
+<hr width="100%" size="2">
+<h3><a name="DICOM_Configuration"></a>DICOM Configuration</h3>
+<h4>Server</h4>
+On the DICOM server, you must define your local Application Entity. &nbsp;On
+the AW, this is under "Network Manager". &nbsp;Add an entry for your machine,
+so that you have this information:<br>
+<br>
+<ul>
+  <li>Application Entity: can be anything, but generally the name of your
+machine, i.e. nsk1blezekda01</li>
+  <li>Host: the hostname of your machine, i.e. nsk1blezekda01.crd.ge.com</li>
+  <li>Port: 4006 is the default and commonly used DICOM communications port</li>
+  <li>Query Retrieve Level: Patient or Subject is fine</li>
+  <li>Storage Commitment: should be set to Yes</li>
+  <ul>
+    <li>Storage Provider Application Entity: use the same information as
+above</li>
+    <li>Host: hostname of your machine</li>
+    <li>Part: 4006</li>
+  </ul>
+</ul>
+<h4>FetchDICOM</h4>
+Click the Configure button (#3) to bring up the application entity dialog.<br>
+<br>
+<img src="Images/ApplicationEntityDialog.gif" alt="" width="605"
+ height="450">
+<br>
+<br>
+Click on the "New" button to add an Application Entity for the remote DICOM
+server. &nbsp;"Modify" will allow you to change the information for an existing
+entry. &nbsp;"Delete" will remove an entry from the list. &nbsp;Click "Done"
+when finished.<br>
+<br>
+To see the list of patients on the server, select the server name from the
+Server selection list (#1 in the GUI image above). &nbsp;This will automatically
+fetch the list of patients from the server, if everything has been configured
+properly. &nbsp;The list will appear in area #4. &nbsp;Selecting a patient
+exam will fetch the information about the existing series into the list (area
+#5).<br>
+<br>
+<hr width="100%" size="2">
+<h3><a name="Fetching_Images"></a>Fetching Images</h3>
+To fetch images from the server, select the patient from the list, or select
+an individual series. &nbsp;Under the Fetch menu, select fetch. &nbsp;A dialog
+box will allow you to select the directory in which to store the images.
+&nbsp;The Fetch menu offers a set of options for sorting the fetched images.<br>
+<br>
+<ul>
+  <li><b>Exam/Series/Image####.dcm</b> -- sort the images into sub-directories.
+&nbsp;Exam is replaced by the exam number, etc...</li>
+  <li><b>Modality/Station/Exam/Series/Image####.dcm </b>-- same as above,
+but with modality and station name added</li>
+  <li><b>Modality/Exam/Series/Image####.dcm</b> -- same as above, but without
+station</li>
+  <li><b>Image####.dcm</b> -- Images only, no subdirectories.</li>
+</ul>
+A progress dialog will appear showing the status of the fetch.<br>
+<br>
+<hr width="100%" size="2">
+<h3><a name="Pushing_Images"></a>Pushing Images</h3>
+Images may be pushed to the server using the "Push Directory" command under
+the Push menu item. &nbsp;A directory must be selected using the dialog box.
+&nbsp;All DICOM files found in the selected directory and any sub-directories
+will be sent to the server. &nbsp;A sorting process is performed first with
+a progress bar. &nbsp;When the images are sorted, the will be sent to the
+server, again with a progress bar indicating status.<br>
+<br>
+</body>
+</html>

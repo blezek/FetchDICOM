@@ -1,0 +1,16 @@
+
+DCMTK 3.5.2
+
+This is the binary package of the DICOM ToolKit (DCMTK) compiled on 
+Windows with Visual C++ 5.0. It contains the executable binaries, 
+documentation and support files.
+
+The source code package is also available from http://dicom.offis.de/dcmtk/.
+
+If you find bugs or other problems with this software we would appreciate
+hearing about them.  Please send electronic mail to:
+
+        dicom-bugs@offis.de
+
+Please try to describe the problem in detail and if possible give a
+suggested fix.
