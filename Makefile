@@ -9,4 +9,4 @@ linux:
 	sdx wrap FetchDICOM -runtime tclkit
 
 macosx:
-	../tclkit-darwin-univ-aqua ../sdx.kit wrap FetchDICOM -runtime ../tclkit-macosx
+	sdx wrap FetchDICOM -runtime ./tclkit-macosx
