@@ -553,7 +553,7 @@ proc GetSeriesInfo {} {
   append Command " --aetitle [lindex $CallingAE 0]"
   append Command " --call [lindex $CalledAE 0] -S "
   append Command " --key 0008,0052=SERIES  --key 0020,000e --key 0008,0060 --key 0020,000d=$UID --key 0020,0011 --key 0008,0060 --key 0008,0016 --key 0008,103e"
-  append Command " [lindex $CalledAE 1] [lindex $CalledAE 2] |& tee Log.txt"
+  append Command " [lindex $CalledAE 1] [lindex $CalledAE 2] |& tee -a Log.txt"
   Log $Command
   if { [catch {
     # set Data [eval exec $Command]
@@ -679,7 +679,7 @@ proc GetExamInfo {} {
 
   # append Command " -S --key 0008,0052=STUDY "
   #  append Command " --key 0008,0020 --key 0008,0030 --key 0008,1030 --key 0020,0010 --key 0020,000d --key 0010,0010 --key 0010,0020 --key 0008,103e --key 0008,0060"
-  append Command " [lindex $CalledAE 1] [lindex $CalledAE 2] |& tee Log.txt"
+  append Command " [lindex $CalledAE 1] [lindex $CalledAE 2] |& tee -a Log.txt"
   Log $Command
   set Fetch(Status) "Fetching exam list from [lindex $CalledAE 0]"
 
@@ -908,7 +908,7 @@ proc BackgroundFetch {} {
         append Command " --key 0020,000d=$Series(StudyInstanceUID)"
       }
     }
-    append Command " [lindex $CalledAE 1] [lindex $CalledAE 2]"
+    append Command " [lindex $CalledAE 1] [lindex $CalledAE 2] |& tee -a Log.txt"
 
     if { ![winfo exists .fetch.progressdlg] } {
       ProgressDlg .fetch.progressdlg -parent .fetch -title "Fetching Images..." \
@@ -1290,9 +1290,11 @@ proc GetDicomTags { Filename {MustExist {}} {SearchList {}} } {
     foreach s $SearchList {
       append Command " --search $s "
     }
-    append Command " [list [file nativename $Filename]]"
-    Log $Command
+    append Command " [list [file nativename $Filename]] |& tee -a Log.txt"
+  } else {
+    Log "Empty search list"
   }
+  Log $Command
   
   set Status [catch { eval exec $Command } Result]
   if { $Status } {
