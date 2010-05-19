@@ -8,5 +8,5 @@
 # script is sourced, the variable $dir must contain the
 # full path name of this file's directory.
 
-package ifneeded ViewDICOM 1.0 [list source [file join $dir ViewDICOM.tcl]]
-package ifneeded app-FetchDICOM 1.0 [list source [file join $dir FetchDICOM.tcl]]
+if {![package vsatisfies [package provide Tcl] 8.2]} {return}
+package ifneeded http 2.4.4 [list tclPkgSetup $dir http 2.4.4 {{http.tcl source {::http::config ::http::formatQuery ::http::geturl ::http::reset ::http::wait ::http::register ::http::unregister}}}]

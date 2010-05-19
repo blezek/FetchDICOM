@@ -5,6 +5,7 @@ package require Tk
 package require mkWidgets
 package require BWidget
 package require struct
+package require ViewDICOM
 
 proc CollectBackground { fid ID UpdateProgress } {
   global Background Fetch
@@ -20,6 +21,22 @@ proc CollectBackground { fid ID UpdateProgress } {
     }
   }
 }
+
+
+proc Help {} {
+  package require Wikit
+  Wikit::init [file join $starkit::topdir doc FetchDICOM.doc] 1 .help
+}
+
+proc StartViewDICOM {} {
+  global Fetch
+  set Directory [tk_chooseDirectory -initialdir $Fetch(FetchDirectory) -parent .fetch -title "Choose ViewDICOM directory"]
+  if { $Directory == "" } { return }
+  set Fetch(FetchDirectory) $Directory
+  CreateViewDICOM $Directory
+}
+
+
 
 proc ExecuteInBackground { Command {UpdateProgress 0} } {
   # Start up a process, collect all the data, and return
@@ -109,7 +126,8 @@ proc LoadPreferences {} {
   global AE Fetch env
 
   if { ![file exists [file join $env(HOME) .dicomfetch] ] } {
-    SavePreferences
+    # Kick it off
+    SavePreferences 1
   }
   
   set fid [open [file join $env(HOME) .dicomfetch] r]
@@ -119,8 +137,18 @@ proc LoadPreferences {} {
 
 }
 
-proc SavePreferences {} {
+proc SavePreferences {{incallback 0}} {
   global AE Fetch env
+  if { ![info exist Fetch(IdleCallback)] || $Fetch(IdleCallback) == "" } {
+    set Fetch(IdleCallback) [after 400 "SavePreferences 1"]
+  }
+  if { !$incallback } {
+    return
+  }
+  set Fetch(IdleCallback) ""
+  catch { 
+    set Fetch(WindowGeometry) [wm geom .fetch]
+  }
   set fid [open [file join $env(HOME) .dicomfetch] "w"]
   puts $fid [array get Fetch]
   puts $fid [array get AE]
@@ -156,6 +184,7 @@ proc Initialize {} {
   set Fetch(SaveLog) 0
   set Fetch(ShowSliceCounts) 1
   set Fetch(Progress) 0
+  set Fetch(WindowGeometry) 800x650
 
   LoadPreferences
   SetDCMTKPath
@@ -169,53 +198,69 @@ proc Initialize {} {
   set Background(Job) 0
   
   wm withdraw .
+  # {command "Save Contact Sheet..." {} "Find DICOM files and generate a Contact Sheet" {} -command ContactSheet }
   set Menu {
     "&File" "" file 0 {
-      {command "Show Tags..." {} "" {} -command DisplayDicomTags }
+      {command "Update" {} "" {Ctrl u} -command GetExamInfo }
+      {command "ViewDICOM" {} "" {Ctrl v} -command StartViewDICOM }
+      {separator}
+      {command "Show Tags..." {} "" {Ctrl t} -command DisplayDicomTags }
       {command "Save as CSV..." {} "Save exam report as CSV file" {} -command SaveAsCSV }
-      {checkbutton "&Log" {} "Log commands to stdout" {} -variable Fetch(SaveLog) -command LogCheckAction }
-      {checkbutton "&Show Slice Counts" {} "Show slice counts" {} -variable Fetch(ShowSliceCounts) }
-      {command "Update" {} "" {} -command GetExamInfo }
-      {command "Quit" {} "Quit" {} -command Quit }
+      {separator}
+      {checkbutton "&Log" {} "Log commands to stdout" {Ctrl o} -variable Fetch(SaveLog) -command LogCheckAction }
+      {checkbutton "&Show Slice Counts" {} "Show slice counts" {Ctrl s} -variable Fetch(ShowSliceCounts) }
+      {separator}
+      {command "Console" {} "" {Ctrl c} -command ShowConsole }
+      {separator}
+      {command "Quit" {} "Quit" {Ctrl q} -command Quit }
     }
     "&Fetch" "" queue 0 {
-      {command "Fetch" {} "Fetch the selected images from the server" {} -command {Fetch} }
+      {command "Fetch" {} "Fetch the selected images from the server" {Ctrl f} -command {Fetch} }
       {cascad "&Sort" "" sort 0 {
-        {radiobutton "Exam/Series/Image\#\#\#\#.dcm" {} "Sort the fetched images by exam, series, and image" {} -value ExamSeriesImage -variable Fetch(SortFetchedImages) }
-        {radiobutton "PatientName/Series/Image\#\#\#\#.dcm" {} "Sort the fetched images by patient name, series, and image" {} -value PatientNameSeriesImage -variable Fetch(SortFetchedImages) }
-        {radiobutton "Fancy sort" {} "Sort the fetched images by Name, Date, exam, series" {} -value Fancy -variable Fetch(SortFetchedImages) }
-        {radiobutton "ExamStation/Series/Image\#\#\#\#.dcm" {} "Sort the fetched images by exam/station, series, and image" {} -value ExamStationSeriesImage -variable Fetch(SortFetchedImages) }
-        {radiobutton "PatientID/Series/Image\#\#\#\#.dcm" {} "Sort the fetched images by patient ID, series, and image" {} -value PatientIDSeriesImage -variable Fetch(SortFetchedImages) }
-        {radiobutton "Modality/Station/Exam/Series/Image\#\#\#\#.dcm" {} "Sort the fetched images by modality, station, exam, series, and image" {} -value ModalityStationExamSeriesImage -variable Fetch(SortFetchedImages) }
-        {radiobutton "Modality/Exam/Series/Image\#\#\#\#.dcm" {} "Sort the fetched images by station, exam, series, and image" {} -value ModalityExamSeriesImage -variable Fetch(SortFetchedImages) }
-        {radiobutton "Image\#\#\#\#.dcm" {} "Sort the fetched images by image" {} -value Image -variable Fetch(SortFetchedImages) }
+        {radiobutton "Exam/Series/Image\#\#\#\#.dcm" {} "Sort the fetched images by exam, series, and image" {Ctrl 1} -value ExamSeriesImage -variable Fetch(SortFetchedImages) }
+        {radiobutton "PatientName/Series/Image\#\#\#\#.dcm" {} "Sort the fetched images by patient name, series, and image" {Ctrl 2} -value PatientNameSeriesImage -variable Fetch(SortFetchedImages) }
+        {radiobutton "Fancy sort" {} "Sort the fetched images by Name, Date, exam, series" {Ctrl 3} -value Fancy -variable Fetch(SortFetchedImages) }
+        {radiobutton "Exam PatientName/Series/Image\#\#\#\#.dcm" {} "Sort the fetched images by concatination of exam number and patient name, series, and image" {Ctrl 4} -value ExamPatientNameSeriesImage -variable Fetch(SortFetchedImages) }
+        {radiobutton "ExamStation/Series/Image\#\#\#\#.dcm" {} "Sort the fetched images by exam/station, series, and image" {Ctrl 5} -value ExamStationSeriesImage -variable Fetch(SortFetchedImages) }
+        {radiobutton "PatientID/Series/Image\#\#\#\#.dcm" {} "Sort the fetched images by patient ID, series, and image" {Ctrl 6} -value PatientIDSeriesImage -variable Fetch(SortFetchedImages) }
+        {radiobutton "Modality/Station/Exam/Series/Image\#\#\#\#.dcm" {} "Sort the fetched images by modality, station, exam, series, and image" {Ctrl 7} -value ModalityStationExamSeriesImage -variable Fetch(SortFetchedImages) }
+        {radiobutton "Modality/Exam/Series/Image\#\#\#\#.dcm" {} "Sort the fetched images by station, exam, series, and image" {Ctrl 8} -value ModalityExamSeriesImage -variable Fetch(SortFetchedImages) }
+        {radiobutton "Image\#\#\#\#.dcm" {} "Sort the fetched images by image" {Ctrl 9} -value Image -variable Fetch(SortFetchedImages) }
+        {radiobutton "Exam/Series/Phase/Image\#\#\#\#.dcm" {} "Sort the fetched images by exam, series, cardiac phase and image" {Ctrl 0} -value ExamSeriesPhaseImage -variable Fetch(SortFetchedImages) }
+        {radiobutton "Exam/Series/Location/Image\#\#\#\#.dcm" {} "Sort the fetched images by exam, series, location and image" {} -value ExamSeriesLocationImage -variable Fetch(SortFetchedImages) }
       }
       }
     }
     "&Sort" "" sort 0 {
-      {radiobutton "Patient Name" {} "Sort by patient name" {} -value 0 -variable Fetch(SortExamBy) -command SortAndDisplay }
-      {radiobutton "Patient ID" {} "Sort by patient id" {} -value 1 -variable Fetch(SortExamBy) -command SortAndDisplay }
-      {radiobutton "Exam Number" {} "Sort by exam number" {} -value 2 -variable Fetch(SortExamBy) -command SortAndDisplay }
-      {radiobutton "Study Date" {} "Sort by exam date" {} -value 3 -variable Fetch(SortExamBy) -command SortAndDisplay }
+      {radiobutton "Patient Name" {} "Sort by patient name" {Ctrl n} -value 0 -variable Fetch(SortExamBy) -command SortAndDisplay }
+      {radiobutton "Patient ID" {} "Sort by patient id" {Ctrl i} -value 1 -variable Fetch(SortExamBy) -command SortAndDisplay }
+      {radiobutton "Exam Number" {} "Sort by exam number" {Ctrl e} -value 2 -variable Fetch(SortExamBy) -command SortAndDisplay }
+      {radiobutton "Study Date" {} "Sort by exam date" {Ctrl d} -value 3 -variable Fetch(SortExamBy) -command SortAndDisplay }
       {separator}
       {radiobutton "Increasing" {} "Sort increasing" {} -value "-increasing" -variable Fetch(SortExamDirection) -command SortAndDisplay }
       {radiobutton "Decreasing" {} "Sort decreasing" {} -value "-decreasing" -variable Fetch(SortExamDirection) -command SortAndDisplay }
     }
     "&Push" "" push 0 {
-      {command "Push Directory" {} "Push all files in a directory to the server" {} -command {PushImages} }
+      {command "Push Directory" {} "Push all files in a directory to the server" {Ctrl p} -command {PushImages} }
       {checkbutton "&Quick Sorting" {} "Try to send all files in the directory" {} -variable Fetch(QuickSortForPush) }
-      {command "Sort Local Files" {} "Sort local files" {} -command {SortLocalFiles} }
+      {command "Sort Local Files" {} "Sort local files" {Ctrl l} -command {SortLocalFiles} }
     }
-      
+    "&Help" "" help 0 {
+      {command "About" {} "" {} -command About }
+      {command "Help" {} "" {Ctrl h} -command Help }
+    }
   }
 
 
   toplevel .fetch -class FetchDICOM
   wm title .fetch "FetchDICOM"
-  wm geometry .fetch 800x650
+  wm geometry .fetch $Fetch(WindowGeometry)
   update
-  wm protocol .fetch WM_DELETE_WINDOW Quit
 
+  # Handle quit events and geometry
+  wm protocol .fetch WM_DELETE_WINDOW Quit
+  bind .fetch <Configure> +SavePreferences
+  
   set Fetch(MainFrame) [MainFrame .fetch.mainframe -menu $Menu -textvariable Fetch(Status) -progressvar Fetch(Progress) -progresstype normal -progressmax 100 ]
   pack .fetch.mainframe -fill both -expand 1
   .fetch.mainframe showstatusbar progression
@@ -241,12 +286,17 @@ proc Initialize {} {
   
   set List [listcontrol [$tframe getframe].exam -selectmode multiple -onselect GetSeriesInfo]
   set Fetch(ExamList) $List
-  $List column insert Name end -text "Patient Name" -width 150
-  $List column insert ID end -text "ID" -width 200
-  $List column insert ExamDate end -text "Exam Date" -width 160
-  $List column insert ExamNumber end -text "Exam Number" -width 75
-  $List column insert Description end -text "Description" -width 400
+  $List column insert Name end -text "Patient Name" -width 150 -minsize 10
+  $List column insert ID end -text "ID" -width 200  -minsize 10
+  $List column insert ExamDate end -text "Exam Date" -width 160  -minsize 10
+  $List column insert ExamNumber end -text "Exam Number" -width 75  -minsize 10
+  $List column insert Description end -text "Description" -width 400  -minsize 10
   pack $List -fill both -expand 1 -padx 4 -pady 2
+
+  foreach c [list Name ID  ExamNumber ExamDate Description] idx "0 1 2 3 4" {
+    $List column bind $c <Double-1> [list catch [list $List column fit $c]]
+    $List column bind $c <1> "SortAndDisplay $idx"
+  }
 
   set tframe [TitleFrame $sinfo -text "Series"]
   pack $tframe -fill both -expand 1
@@ -281,7 +331,10 @@ proc Initialize {} {
 }
 
 proc Quit {} {
-  if { [tk_messageBox -parent .fetch -title "Quit FetchDICOM?" -message "Really quit FetchDICOM?" -type yesno -icon question] == "yes" } { exit }
+  if { [tk_messageBox -parent .fetch -title "Quit FetchDICOM?" -message "Really quit FetchDICOM?" -type yesno -icon question] == "yes" } {
+    SavePreferences 1
+    exit
+  }
 }
 
 proc ConfigureAE {} {
@@ -707,16 +760,32 @@ proc SaveAsCSV { {Filename {} } } {
 }
   
 
-proc SortAndDisplay { } {
+proc SortAndDisplay { {idx ""} } {
   global Fetch ExamData Sort
   if { ![info exists Sort(AllExamSort)] } { return }
+
+  if { $idx != "" } {
+    Log "SortAndDisplay $idx: current is $Fetch(SortExamBy)"
+    # User pressid this button
+    if { $idx != $Fetch(SortExamBy) } {
+      set Fetch(SortExamBy) $idx
+    } else {
+      # Toggle sort direction
+      if { $Fetch(SortExamDirection) == "-increasing" } {
+        set Fetch(SortExamDirection) -decreasing
+      } else {
+        set Fetch(SortExamDirection) -increasing
+      }
+    }
+    Log "SortAndDisplay $idx $Fetch(SortExamDirection)"
+  }
   
   # Sort by exam number first, the selected
   set t [lsort -dictionary -index 2 $Fetch(SortExamDirection) $Sort(AllExamSort)]
   if { $Fetch(SortExamBy) != 2 } { 
     set ExamSort [lsort -dictionary -index $Fetch(SortExamBy) $Fetch(SortExamDirection) $t]
   } else {
-    set ExamSort $t
+    set ExamSort [lsort -integer -index $Fetch(SortExamBy) $Fetch(SortExamDirection) $t]
   }
   $Fetch(ExamList) delete 0 end
   foreach EE $ExamSort {
@@ -920,7 +989,7 @@ proc SortFetchedImages { Directory Temp {Sort {}} } {
   set Fetch(Progress) 0
   foreach File $Files {
     array unset Tags
-    set Answer [GetDicomTags $File [list [list InstanceNumber $Count] {StudyID 1} {SeriesNumber 1} {Modality Unknown} {StationName Unknown}]]
+    set Answer [GetDicomTags $File [list [list InstanceNumber $Count] {CardiacNumberOfImages -1} {SliceLocation -1} {StudyID 1} {SeriesNumber 1} {Modality Unknown} {StationName Unknown}]]
     if { $Answer == "" } { continue }
     array set Tags $Answer
     
@@ -928,11 +997,32 @@ proc SortFetchedImages { Directory Temp {Sort {}} } {
       ExamSeriesImage {
         set Filename [file join $Tags(StudyID) $Tags(SeriesNumber) [format Image%04d.dcm $Tags(InstanceNumber)]]
       }
+      ExamSeriesPhaseImage {
+        if { $Tags(CardiacNumberOfImages) == -1 } {
+          set Filename [file join $Tags(StudyID) $Tags(SeriesNumber) [format Image%04d.dcm $Tags(InstanceNumber)]]
+        } else {
+          # Log "Instance $Tags(InstanceNumber): [expr $Tags(InstanceNumber) % $Tags(CardiacNumberOfImages)]"
+          set D [format Phase%02d [expr $Tags(InstanceNumber) % $Tags(CardiacNumberOfImages)]]
+          set Filename [file join $Tags(StudyID) $Tags(SeriesNumber) $D [format Image%04d.dcm $Tags(InstanceNumber)]]
+        }
+      }
+      ExamSeriesLocationImage {
+        if { $Tags(SliceLocation) == -1 } {
+          set Filename [file join $Tags(StudyID) $Tags(SeriesNumber) [format Image%04d.dcm $Tags(InstanceNumber)]]
+        } else {
+          # Log "Instance $Tags(InstanceNumber): [expr $Tags(InstanceNumber) % $Tags(CardiacNumberOfImages)]"
+          set D "Location$Tags(SliceLocation)"
+          set Filename [file join $Tags(StudyID) $Tags(SeriesNumber) $D [format Image%04d.dcm $Tags(InstanceNumber)]]
+        }
+      }
       ExamStationSeriesImage {
         set Filename [file join "$Tags(StudyID)$Tags(StationName)" $Tags(SeriesNumber) [format Image%04d.dcm $Tags(InstanceNumber)]]
       }
       PatientNameSeriesImage {
         set Filename [file join "$Tags(PatientsName)" $Tags(SeriesNumber) [format Image%04d.dcm $Tags(InstanceNumber)]]
+      }
+      ExamPatientNameSeriesImage {
+        set Filename [file join "$Tags(StudyID) $Tags(PatientsName)" $Tags(SeriesNumber) [format Image%04d.dcm $Tags(InstanceNumber)]]
       }
       PatientIDSeriesImage {
         set Filename [file join "$Tags(PatientID)" $Tags(SeriesNumber) [format Image%04d.dcm $Tags(InstanceNumber)]]
@@ -952,7 +1042,11 @@ proc SortFetchedImages { Directory Temp {Sort {}} } {
         set Name [string map $map $Tags(PatientsName)]
         set Date [clock format [clock scan $Tags(StudyDate)] -format "%Y-%m-%d"]
         set Exam "[string toupper $Tags(Modality)]$Tags(StudyID)"
-        set Dir [string map $map [format "Series%03d" $Tags(SeriesNumber)]]
+        if { $Tags(AcquisitionNumber) != 0.0 } {
+            set Dir [string map $map [format "Series%03d-Acquisition%03d" $Tags(SeriesNumber) $Tags(AcquisitionNumber)]]
+        } else {
+            set Dir [string map $map [format "Series%03d" $Tags(SeriesNumber)]]
+        }
         set F [format Image%04d.dcm $Tags(InstanceNumber)]
         set Filename [file join $Name $Date $Exam $Dir $F]
         # set Link [format "Series%03d" $Tags(SeriesNumber)]
@@ -963,6 +1057,7 @@ proc SortFetchedImages { Directory Temp {Sort {}} } {
     }
     set Filename [file join $Directory $Filename]
     file mkdir [file dir $Filename]
+    set Fetch(Status) "Writing $Filename"
     if { $Move } {
       file rename -force -- $File $Filename
     } else {
@@ -1041,6 +1136,28 @@ proc WalkDirectory { Queue } \
   return $Output
 }
 
+proc FindDirectories { Queue } \
+{
+  set Output ""
+  
+  while { [llength $Queue] != 0 } \
+  {
+    set Filename [lindex $Queue 0]
+    set Queue [lrange $Queue 1 end]
+
+    if { [file isdirectory $Filename] } \
+    {
+      lappend Output $Filename
+      foreach f [glob -nocomplain -- [file join $Filename *]] {
+        if { [file isdirectory $f] } {
+          lappend Queue $f
+        }
+      }
+    }
+  }
+  return $Output
+}
+
 proc DisplayDicomTags { {Filename {}}  } {
   global Fetch
 
@@ -1076,25 +1193,113 @@ proc DisplayDicomTags { {Filename {}}  } {
   # set t [$Tab insert all 0 -text "All " -window $Tab.all]
   # pack $Tab -expand 1 -fill both
   pack $w.all -expand 1 -fill both
-  wm geometry $w 800x500
+  wm geometry .fetch $Fetch(WindowGeometry)
   
 }
 
+# Find all the "Frame0001.dcm" files in the current directory
+proc ContactSheet {} {
+  global Fetch
+  set Directory [tk_chooseDirectory -initialdir $Fetch(FetchDirectory) -parent .fetch -title "Choose files to sort"]
+  if { $Directory == "" } { return }
 
-proc GetDicomTags { Filename {MustExist {} }} {
-    global Fetch
+  ProgressDlg .fetch.pushprogress -parent .fetch -title "Generating Contact Sheet..." \
+  -maximum 100 -width 40 -variable Fetch(Progress) -stop {} \
+  -textvariable Fetch(Status)
+  update
+  set Fetch(Status) "Finding images..."
+  set Files [WalkDirectory [list $Directory]]
+  set Fetch(FetchDirectory) $Directory
+  SavePreferences
+
+  set ContactFile [tk_getSaveFile -initialdir $Fetch(FetchDirectory) -initialfile ContactSheet.png -parent .fetch -title "Save Contact Sheet"]
+  if { $ContactFile == "" } { return }
+
+  set Directory [file dir $ContactFile]
+  set i 0
+  # Make a temporary directory
+  while { 1 } {
+    set TempDir [file join $Directory [format Temp%d $i]]
+    if { ![file exists $TempDir] } { break }
+    incr i
+  }
+  file mkdir $TempDir
+
+  set Fetch(Progress) 0
+  set Count 1
+  set NumberOfFiles [llength $Files]
+  foreach File $Files {
+    array unset Tags
+    set Answer [GetDicomTags $File [list [list InstanceNumber 1] {ImagesInAcquisition 1} {CardiacNumberOfImages -1} {SliceLocation -1} {StudyID 1} {SeriesNumber 1} {Modality Unknown} {StationName Unknown}]]
+    if { $Answer == "" } { continue }
+    array set Tags $Answer
+    if { $Tags(InstanceNumber) == [expr round ( $Tags(ImagesInAcquisition) / 2.0 )] } {
+      set Filename "$Tags(StudyID)-$Tags(SeriesNumber).png"
+
+      # Copy and convert
+      set Output [file join $TempDir $Filename]
+      Log "dcm2pnm -O +Wh 1 +G $File | pnmtopng > $Output"
+      if { ![catch {exec dcm2pnm -O +Wh 1 +G $File | pnmtopng > $Output} Result] && ![file exist $Output] } {
+        tk_messageBox -parent .fetch -title "Error in dcm2pnm" -message "Error generating png: $Result" -type ok
+        break
+      }
+        
+    }
+    set Fetch(Progress) [expr 100 * ($Count / double($NumberOfFiles))]
+    incr Count
+    update    
+  }
+  # Do the montage
+  set Fetch(Status) "Generating Montage"
+
+  set Files [glob $TempDir/*]
+  set Files [lsort -dictionary $Files]
+  set NumberOfFiles [llength $Files]
+  set count 0
+  while { [llength $Files] > 0 } {
+    set OutputFilename "[file root $ContactFile]$count[file ext $ContactFile]"
+    set Fetch(Status) "Writing montage: [file tail $OutputFilename]"
+    incr count
+    set Status [catch {
+      Log "montage -label %f [lrange $Files 0 23] $OutputFilename"
+      eval exec montage -label %f [lrange $Files 0 23] $OutputFilename
+    } Result]
+    if { !$Status && ![file exists $OutputFilename] } {
+      tk_messageBox -parent .fetch -title "Error in Montage" -message "Error generating Montage: $Result" -type ok
+      break
+    }
+    set Files [lrange $Files 24 end]
+    set Fetch(Progress) [expr ($NumberOfFiles - [llength $Files]) / double($NumberOfFiles) * 100]
+    update
+  }
+
+  destroy .fetch.pushprogress
+}
+
+proc GetDicomTags { Filename {MustExist {}} {SearchList {}} } {
+  global Fetch
   # Return an "array get" format of the DICOM tags in the file
 
-    set Command "[DCMTK dcmdump] [list [file nativename $Filename]]"
-    set Status [catch { eval exec $Command } Result]
+  set Command "[DCMTK dcmdump] --load-short [list [file nativename $Filename]]"
+  if { $SearchList != {} } {
+    set Command "[DCMTK dcmdump] --load-short "
+    foreach s $SearchList {
+      append Command " --search $s "
+    }
+    append Command " [list [file nativename $Filename]]"
+    Log $Command
+  }
+  
+  set Status [catch { eval exec $Command } Result]
   if { $Status } {
+    Log "Returning blank"
     return ""
   }
 
   foreach Name [list SeriesDescription ScanOptions StudyID SeriesDate SeriesTime] {
     set Tags($Name) ""
   }
-  foreach Name [list SeriesNumber EchoTime RepetitionTime FlipAngle] {
+  foreach Name [list SeriesNumber AcquisitionNumber EchoTime RepetitionTime FlipAngle] {
     set Tags($Name) 0.0
   }
   
@@ -1117,3 +1322,16 @@ proc GetDicomTags { Filename {MustExist {} }} {
   return [array get Tags]
 }
 
+
+# show the tkconsole for manipulating internal structure and run scripts
+proc ShowConsole {} {
+
+  #uplevel #0 source [file join [file dir [info nameofexecutable]] lib/tkcon.tcl]
+  # TODO: package for starkit
+  # uplevel \#0 source FetchDICOM.vfs/lib/tkcon/tkcon.tcl
+  catch { package require tkcon}
+  # ::tkcon::Init 
+  ::tkcon attach Main
+}
+
+      
