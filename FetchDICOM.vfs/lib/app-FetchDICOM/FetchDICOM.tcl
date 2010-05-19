@@ -553,7 +553,7 @@ proc GetSeriesInfo {} {
   append Command " --aetitle [lindex $CallingAE 0]"
   append Command " --call [lindex $CalledAE 0] -S "
   append Command " --key 0008,0052=SERIES  --key 0020,000e --key 0008,0060 --key 0020,000d=$UID --key 0020,0011 --key 0008,0060 --key 0008,0016 --key 0008,103e"
-  append Command " [lindex $CalledAE 1] [lindex $CalledAE 2] 2> Log.txt"
+  append Command " [lindex $CalledAE 1] [lindex $CalledAE 2] |& tee Log.txt"
   Log $Command
   if { [catch {
     # set Data [eval exec $Command]
@@ -628,6 +628,10 @@ proc GetResponses { Data } {
   set Responses ""
   set Accum ""
   foreach Line [split $Data "\n"] {
+    if { [string match "W: *" $Line] } {
+      set Line [string range $Line 3 end]
+      Log $Line
+    }
     if { [string match -------- $Line] } {
       lappend Responses $Accum
       set Accum ""
@@ -675,7 +679,7 @@ proc GetExamInfo {} {
 
   # append Command " -S --key 0008,0052=STUDY "
   #  append Command " --key 0008,0020 --key 0008,0030 --key 0008,1030 --key 0020,0010 --key 0020,000d --key 0010,0010 --key 0010,0020 --key 0008,103e --key 0008,0060"
-  append Command " [lindex $CalledAE 1] [lindex $CalledAE 2] 2> Log.txt"
+  append Command " [lindex $CalledAE 1] [lindex $CalledAE 2] |& tee Log.txt"
   Log $Command
   set Fetch(Status) "Fetching exam list from [lindex $CalledAE 0]"
 
